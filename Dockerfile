@@ -8,7 +8,8 @@ WORKDIR /app
 COPY . .
 
 RUN pnpm install --dangerously-allow-all-builds --frozen-lockfile
+RUN npm install -g serve
 
 EXPOSE 3000
 
-CMD pnpm run build && pnpm run preview --host --port 3000
+CMD pnpm run build && serve -s dist -l 3000
