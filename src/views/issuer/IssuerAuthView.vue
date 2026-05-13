@@ -146,7 +146,7 @@ onMounted(async () => {
       v-if="popupVisible"
       :visible="popupVisible"
       :relay-url="relayUrl"
-      :request="authRequestJsonRpc"
+      :request="authRequestJsonRpc as any"
       title="Authenticate"
       @disconnected="popupVisible = false"
       @close-requested="popupVisible = false"
