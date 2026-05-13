@@ -29,7 +29,7 @@ const items = [
     <Menubar :model="items">
       <template #start>
         <span class="app-logo" @click="router.push('/')" role="button" tabindex="0">
-          <i class="pi pi-shield" style="font-size: 1.25rem; margin-right: 0.5rem;" />
+          <i class="pi pi-shield" style="font-size: 1.25rem; margin-right: 0.5rem" />
           <strong>Carmentis</strong>
         </span>
       </template>

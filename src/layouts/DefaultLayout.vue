@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AppNavbar from '@/components/AppNavbar.vue'
 import Toast from 'primevue/toast'
+const ENDPOINT = import.meta.env.VITE_API_ENDPOINT
 </script>
 
 <template>
@@ -13,6 +14,7 @@ import Toast from 'primevue/toast'
     <footer class="app-footer">
       <div class="container">
         <p>Carmentis Email Demo &mdash; Verifiable Credentials Showcase</p>
+        <p>Server Endpoint: {{ ENDPOINT }}</p>
       </div>
     </footer>
   </div>
