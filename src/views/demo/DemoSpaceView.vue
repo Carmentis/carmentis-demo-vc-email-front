@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import Card from 'primevue/card'
@@ -10,6 +10,7 @@ import FileUpload from 'primevue/fileupload'
 import Message from 'primevue/message'
 import Tag from 'primevue/tag'
 import Divider from 'primevue/divider'
+import { CarmentisJsonRpcPopup } from '@cmts-dev/carmentis-desk-connect-vuejs'
 import * as v from 'valibot'
 import { api, apiMultipart } from '@/api'
 import { useDemoAuthStore } from '@/stores/demo-auth'
@@ -17,6 +18,8 @@ import { useDemoAuthStore } from '@/stores/demo-auth'
 const router = useRouter()
 const toast = useToast()
 const store = useDemoAuthStore()
+
+const relayUrl = ref('')
 
 // VP state
 const vp = ref('')
@@ -31,7 +34,31 @@ const emailAttachments = ref<File[]>([])
 const emailSending = ref(false)
 const emailErrors = ref<Record<string, string>>({})
 
+// Anchor approval state
+const anchorPopupVisible = ref(false)
+const anchorRequestId = ref('')
+const anchorOperatorUrl = ref('')
+
+const anchorJsonRpc = computed(() => ({
+  jsonrpc: '2.0',
+  id: 1,
+  method: 'wr-data-approval',
+  params: {
+    anchorRequestId: anchorRequestId.value,
+    serverUrl: anchorOperatorUrl.value,
+  },
+}))
+
 const EmailSchema = v.pipe(v.string(), v.email('Please enter a valid email address'))
+
+async function loadConfig() {
+  try {
+    const config = await api<{ relayUrl: string }>('/demo/config')
+    relayUrl.value = config.relayUrl
+  } catch {
+    // silently ignore
+  }
+}
 
 async function loadProfile() {
   try {
@@ -95,6 +122,26 @@ async function sendEmail() {
 
   emailSending.value = true
   try {
+    const prepared = await api<{ anchorRequestId: string; operatorUrl: string }>(
+      '/demo/email/prepare',
+      {
+        method: 'POST',
+        body: JSON.stringify({ to: emailTo.value, subject: emailSubject.value, message: emailMessage.value }),
+        sessionToken: store.sessionToken!,
+      },
+    )
+    anchorRequestId.value = prepared.anchorRequestId
+    anchorOperatorUrl.value = prepared.operatorUrl
+    anchorPopupVisible.value = true
+  } catch (err) {
+    toast.add({ severity: 'error', summary: 'Error', detail: String(err), life: 5000 })
+    emailSending.value = false
+  }
+}
+
+async function onAnchorApproved() {
+  anchorPopupVisible.value = false
+  try {
     const formData = new FormData()
     formData.append('to', emailTo.value)
     formData.append('subject', emailSubject.value)
@@ -116,12 +163,25 @@ async function sendEmail() {
   }
 }
 
+function onAnchorError(error: Error) {
+  anchorPopupVisible.value = false
+  emailSending.value = false
+  toast.add({ severity: 'error', summary: 'Approval Error', detail: error.message, life: 5000 })
+}
+
+function onAnchorDismissed() {
+  anchorPopupVisible.value = false
+  emailSending.value = false
+}
+
 function logout() {
   store.clear()
   router.push('/demo/auth')
 }
 
-onMounted(loadProfile)
+onMounted(async () => {
+  await Promise.all([loadConfig(), loadProfile()])
+})
 </script>
 
 <template>
@@ -284,6 +344,18 @@ onMounted(loadProfile)
         </template>
       </Card>
     </div>
+
+    <CarmentisJsonRpcPopup
+      v-if="anchorPopupVisible"
+      :visible="anchorPopupVisible"
+      :relay-url="relayUrl"
+      :request="anchorJsonRpc"
+      title="Approve sending"
+      @disconnected="onAnchorDismissed"
+      @close-requested="onAnchorDismissed"
+      @response="onAnchorApproved"
+      @error="onAnchorError"
+    />
   </div>
 </template>
 

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import ProgressSpinner from 'primevue/progressspinner'
-import { CarmentisAuthPopup } from '@cmts-dev/carmentis-desk-connect-vuejs'
+import { CarmentisJsonRpcPopup } from '@cmts-dev/carmentis-desk-connect-vuejs'
 import { api } from '@/api'
 import { useDemoAuthStore } from '@/stores/demo-auth'
 
@@ -39,18 +39,18 @@ async function fetchChallenge() {
 }
 
 async function onAuthResponse(response: { result: unknown }) {
-  const result = response.result as { publicKey: string; signature: string }
+  const result = response.result as { pk: string; signature: string }
   authenticating.value = true
   try {
     const data = await api<{ sessionToken: string }>('/demo/auth', {
       method: 'POST',
       body: JSON.stringify({
         challengeId: challengeId.value,
-        publicKey: result.publicKey,
+        pk: result.pk,
         signature: result.signature,
       }),
     })
-    store.setAuth(data.sessionToken, result.publicKey)
+    store.setAuth(data.sessionToken, result.pk)
     toast.add({ severity: 'success', summary: 'Welcome', detail: 'Signed in successfully', life: 3000 })
     router.push('/demo/space')
   } catch (err) {
@@ -68,6 +68,18 @@ async function openPopup() {
   await fetchChallenge()
   popupVisible.value = true
 }
+
+const authRequestJsonRpc = computed(() => ({
+  jsonrpc: '2.0',
+  id: 1,
+  method: '/v1/auth/pk',
+  params: {
+    origin: 'Demo email',
+    b64Challenge: challenge.value,
+    pkFormat: 'did',
+    sigFormat: 'jws',
+  },
+}))
 
 onMounted(async () => {
   if (store.isAuthenticated) {
@@ -108,10 +120,14 @@ onMounted(async () => {
       </div>
     </div>
 
-    <CarmentisAuthPopup
-      v-model:visible="popupVisible"
+    <CarmentisJsonRpcPopup
+      v-if="popupVisible"
+      :visible="popupVisible"
       :relay-url="relayUrl"
-      :challenge="challenge"
+      :request="authRequestJsonRpc"
+      title="Authenticate"
+      @disconnected="popupVisible = false"
+      @close-requested="popupVisible = false"
       @response="onAuthResponse"
       @error="onAuthError"
     />
