@@ -24,6 +24,7 @@ const relayUrl = ref('')
 // VP state
 const vp = ref('')
 const vpSubmitting = ref(false)
+const vpDeleting = ref(false)
 const vpError = ref('')
 
 // Email form state
@@ -71,6 +72,18 @@ async function loadProfile() {
     }
   } catch {
     // Profile load failed silently
+  }
+}
+
+async function deleteVp() {
+  vpDeleting.value = true
+  try {
+    await api('/demo/profile/vp', { method: 'DELETE', sessionToken: store.sessionToken! })
+    store.clearVp()
+  } catch (err) {
+    toast.add({ severity: 'error', summary: 'Error', detail: String(err), life: 5000 })
+  } finally {
+    vpDeleting.value = false
   }
 }
 
@@ -229,6 +242,16 @@ onMounted(async () => {
               <span>{{ store.email }}</span>
               <Tag value="Verified" severity="success" />
             </div>
+            <Button
+              label="Remove credential"
+              icon="pi pi-trash"
+              severity="danger"
+              size="small"
+              text
+              :loading="vpDeleting"
+              style="margin-top: 0.5rem; align-self: flex-start;"
+              @click="deleteVp"
+            />
           </div>
 
           <div v-else class="vp-section">

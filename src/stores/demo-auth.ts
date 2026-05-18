@@ -20,6 +20,11 @@ export const useDemoAuthStore = defineStore('demo-auth', () => {
     email.value = e
   }
 
+  function clearVp() {
+    vpSubmitted.value = false
+    email.value = null
+  }
+
   function clear() {
     publicKey.value = null
     sessionToken.value = null
@@ -27,5 +32,5 @@ export const useDemoAuthStore = defineStore('demo-auth', () => {
     email.value = null
   }
 
-  return { publicKey, sessionToken, vpSubmitted, email, isAuthenticated, canSendEmail, setAuth, setVp, clear }
+  return { publicKey, sessionToken, vpSubmitted, email, isAuthenticated, canSendEmail, setAuth, setVp, clearVp, clear }
 })
