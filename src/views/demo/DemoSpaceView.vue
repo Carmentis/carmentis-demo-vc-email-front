@@ -22,10 +22,12 @@ const store = useDemoAuthStore()
 const relayUrl = ref('')
 
 // VP state
-const vp = ref('')
 const vpSubmitting = ref(false)
 const vpDeleting = ref(false)
-const vpError = ref('')
+const vpPopupVisible = ref(false)
+const vpChallengeId = ref('')
+const vpNonce = ref('')
+const vpAudience = ref('')
 
 // Email form state
 const emailTo = ref('')
@@ -47,6 +49,25 @@ const anchorJsonRpc = computed(() => ({
   params: {
     anchorRequestId: anchorRequestId.value,
     serverUrl: anchorOperatorUrl.value,
+  },
+}))
+
+const vpRequestJsonRpc = computed(() => ({
+  jsonrpc: '2.0',
+  id: 1,
+  method: '/v1/credential/presentation',
+  params: {
+    audience: vpAudience.value,
+    nonce: vpNonce.value,
+    query: {
+      credentials: [
+        {
+          format: 'vc+sd-jwt',
+          id: 'my-cred',
+          claims: [{ path: ['email'] }],
+        },
+      ],
+    },
   },
 }))
 
@@ -87,18 +108,29 @@ async function deleteVp() {
   }
 }
 
-async function submitVp() {
-  vpError.value = ''
-  if (!vp.value.trim()) {
-    vpError.value = 'Please paste your verifiable presentation'
-    return
+async function openVpPopup() {
+  try {
+    const challenge = await api<{ vpChallengeId: string; nonce: string; audience: string }>(
+      '/demo/vp-challenge',
+      { sessionToken: store.sessionToken! },
+    )
+    vpChallengeId.value = challenge.vpChallengeId
+    vpNonce.value = challenge.nonce
+    vpAudience.value = challenge.audience
+    vpPopupVisible.value = true
+  } catch (err) {
+    toast.add({ severity: 'error', summary: 'Error', detail: String(err), life: 5000 })
   }
+}
 
+async function onVpResponse(response: { result: unknown }) {
+  vpPopupVisible.value = false
+  const result = response.result as { vp_token: string }
   vpSubmitting.value = true
   try {
     const data = await api<{ valid: boolean; email: string }>('/demo/profile/vp', {
       method: 'POST',
-      body: JSON.stringify({ vp: vp.value.trim() }),
+      body: JSON.stringify({ vpChallengeId: vpChallengeId.value, vp_token: result.vp_token }),
       sessionToken: store.sessionToken!,
     })
     store.setVp(data.email)
@@ -108,6 +140,11 @@ async function submitVp() {
   } finally {
     vpSubmitting.value = false
   }
+}
+
+function onVpError(error: Error) {
+  vpPopupVisible.value = false
+  toast.add({ severity: 'error', summary: 'Credential Error', detail: error.message, life: 5000 })
 }
 
 function validateEmail(): boolean {
@@ -256,28 +293,14 @@ onMounted(async () => {
 
           <div v-else class="vp-section">
             <p class="vp-hint">
-              Submit a verifiable presentation (SD-JWT) to prove your email and
-              unlock the email feature.
+              Present your email credential from your Carmentis Desk wallet to
+              prove your email and unlock the email feature.
             </p>
-            <div class="field">
-              <label for="vp-input">Verifiable Presentation</label>
-              <Textarea
-                id="vp-input"
-                v-model="vp"
-                rows="5"
-                placeholder="Paste your SD-JWT presentation here..."
-                :invalid="!!vpError"
-                fluid
-              />
-              <Message v-if="vpError" severity="error" :closable="false" class="field-error">
-                {{ vpError }}
-              </Message>
-            </div>
             <Button
-              label="Verify Presentation"
-              icon="pi pi-check-circle"
+              label="Present Email Credential"
+              icon="pi pi-wallet"
               :loading="vpSubmitting"
-              @click="submitVp"
+              @click="openVpPopup"
             />
           </div>
         </template>
@@ -378,6 +401,18 @@ onMounted(async () => {
       @close-requested="onAnchorDismissed"
       @response="onAnchorApproved"
       @error="onAnchorError"
+    />
+
+    <CarmentisJsonRpcPopup
+      v-if="vpPopupVisible"
+      :visible="vpPopupVisible"
+      :relay-url="relayUrl"
+      :request="vpRequestJsonRpc as any"
+      title="Present Email Credential"
+      @disconnected="vpPopupVisible = false"
+      @close-requested="vpPopupVisible = false"
+      @response="onVpResponse"
+      @error="onVpError"
     />
   </div>
 </template>
